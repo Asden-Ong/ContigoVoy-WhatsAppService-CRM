@@ -63,11 +63,12 @@ class WhatsAppService {
    */
 
   emitOutgoingMessage(messageData) {
+    console.log("SOCKET.IO EMITIENDO OUTGOING:", messageData);
+
     if (this.eventEmitter) {
-      console.log("SOCKET OUTGOING:", messageData);
       this.eventEmitter.emit("outgoing-message", messageData);
     } else {
-      console.warn("SOCKET OUTGOING: eventEmitter no está configurado");
+      console.warn("SOCKET.IO SIN EVENT EMITTER");
     }
   }
 

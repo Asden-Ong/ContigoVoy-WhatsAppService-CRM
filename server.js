@@ -22,6 +22,9 @@ const io = new Server(server, {
   cors: { origin: ALLOWED_ORIGINS },
 });
 
+console.log("SOCKET.IO CORS:", ALLOWED_ORIGINS);
+console.log("SOCKET.IO SERVICIO:", `https://wa.digimedia-marketing.com`);
+
 let activeSocketConnections = 0;
 
 app.set("trust proxy", 1);
@@ -89,6 +92,11 @@ app.get(
 
 // Socket.io para actualizaciones en tiempo real
 io.on("connection", (socket) => {
+  console.log("SOCKET.IO CLIENTE CONECTADO:", {
+    socketId: socket.id,
+    origin: socket.handshake.headers.origin,
+    transport: socket.conn.transport.name,
+  });
   if (activeSocketConnections >= MAX_SOCKET_CONNECTIONS) {
     socket.emit("error", {
       message: "Servidor con demasiadas conexiones, intenta más tarde",
@@ -110,8 +118,17 @@ io.on("connection", (socket) => {
     });
   }
 
-  socket.on("disconnect", () => {
-    logger.info("Cliente de socket desconectado", { socketId: socket.id });
+  socket.on("disconnect", (reason) => {
+    console.log("SOCKET.IO CLIENTE DESCONECTADO:", {
+      socketId: socket.id,
+      reason,
+    });
+
+    logger.info("Cliente de socket desconectado", {
+      socketId: socket.id,
+      reason,
+    });
+
     activeSocketConnections--;
   });
 
