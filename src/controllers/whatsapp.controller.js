@@ -242,6 +242,50 @@ export async function sendCampaign(req, res) {
   }
 }
 
+// Sincroniza mensajes (util para el n8n)
+async function syncOutgoingMessageToCRM({
+  jid,
+  phone,
+  message,
+  messageId,
+  timestamp,
+}) {
+  const crmUrl = process.env.CRM_URL || "http://localhost:3000";
+  const secret = process.env.WHATSAPP_WEBHOOK_SECRET || "";
+
+  const url = `${crmUrl}/api/whatsapp/outgoing`;
+
+  const payload = {
+    jid,
+    phone,
+    messageId,
+    text: message,
+    timestamp: Date.now(),
+    sender: "agent",
+    senderName: "Xiomara",
+    channel: "whatsapp",
+    source: "n8n",
+    status: "sent",
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": secret,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    throw new Error(`CRM respondió ${response.status}: ${errorText}`);
+  }
+
+  return await response.json();
+}
+
 /**
  * Envía mensaje genérico de texto (para CRM)
  */
@@ -253,47 +297,85 @@ export async function sendMessage(req, res) {
         message: "WhatsApp no está conectado",
       });
     }
-    const { phone, message } = req.body;
 
-    if (!phone || !message) {
+    const { phone, jid: inputJid, message, n8n: n8n } = req.body;
+
+    if (!message) {
       return res.status(400).json({
         success: false,
-        message: "El teléfono y el mensaje son obligatorios",
+        message: "El mensaje es obligatorio",
       });
     }
 
-    // Detectar si es un LID (Linked Identity) o un número telefónico
-    const isLid = phone.includes("@lid");
-    let jid;
+    let jid = null;
 
-    if (isLid) {
-      // Es un LID: pasarlo directamente a getJidForSending
-      jid = await whatsappService.getJidForSending(phone);
-    } else {
-      // Es un número telefónico: limpiar y validar
-      const numberId = phone.replace(/\D/g, "");
-      if (numberId.length < 10 || numberId.length > 15) {
-        return res.status(400).json({
-          success: false,
-          message: "El formato del número de teléfono no es válido",
-        });
+    // Si n8n/CRM ya conoce el JID real, lo preferimos.
+    if (inputJid) {
+      jid = await whatsappService.getJidForSending(inputJid);
+    } else if (phone) {
+      // LID
+      if (String(phone).includes("@lid")) {
+        jid = await whatsappService.getJidForSending(String(phone));
+      } else {
+        // Número telefónico
+        const numberId = String(phone).replace(/\D/g, "");
+
+        if (numberId.length < 10 || numberId.length > 15) {
+          return res.status(400).json({
+            success: false,
+            message: "El formato del número de teléfono no es válido",
+          });
+        }
+
+        jid = await whatsappService.getJidForSending(numberId);
       }
-      jid = await whatsappService.getJidForSending(numberId);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Se requiere jid o phone",
+      });
     }
 
     if (!jid) {
       return res.status(404).json({
         success: false,
-        message: "El número no está registrado en WhatsApp",
+        message: "No se pudo resolver el destinatario de WhatsApp",
       });
     }
 
+    // 1. Enviar primero a WhatsApp
     const result = await whatsappService.sendMessage(jid, message);
 
-    res.json(result);
+    // 2. Solo después de enviar correctamente,
+    //    sincronizamos el mensaje con el CRM.
+    if (n8n !== undefined) {
+      try {
+        await syncOutgoingMessageToCRM({
+          jid,
+          phone: phone || null,
+          message,
+          messageId: result.messageId,
+          timestamp: result.timestamp,
+        });
+      } catch (crmError) {
+        logger.error(
+          "Mensaje de WhatsApp enviado, pero no se pudo sincronizar con CRM",
+          {
+            error: crmError.message,
+            jid,
+            messageId: result.messageId,
+          },
+        );
+      }
+    }
+
+    return res.json(result);
   } catch (error) {
-    logger.error("Error al enviar mensaje", { error: error.message });
-    res.status(500).json({
+    logger.error("Error al enviar mensaje", {
+      error: error.message,
+    });
+
+    return res.status(500).json({
       success: false,
       message: "Error al enviar el mensaje",
     });
