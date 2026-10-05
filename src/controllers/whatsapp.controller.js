@@ -260,7 +260,11 @@ async function syncOutgoingMessageToCRM({
     phone,
     messageId,
     text: message,
-    timestamp: Date.now(),
+    timestamp: new Date().toLocaleTimeString("es-PE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
     sender: "agent",
     senderName: "Xiomara",
     channel: "whatsapp",
@@ -344,7 +348,9 @@ export async function sendMessage(req, res) {
     }
 
     // 1. Enviar primero a WhatsApp
-    const result = await whatsappService.sendMessage(jid, message);
+    const result = await whatsappService.sendMessage(jid, message, {
+      emitRealtime: n8n !== undefined,
+    });
 
     // 2. Solo después de enviar correctamente,
     //    sincronizamos el mensaje con el CRM.

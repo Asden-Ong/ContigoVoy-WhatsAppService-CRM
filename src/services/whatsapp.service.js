@@ -58,6 +58,18 @@ class WhatsAppService {
       this.eventEmitter.emit("incoming-message", messageData);
     }
   }
+  /**
+   * Emite evento de mensaje saliente por Socket.IO
+   */
+
+  emitOutgoingMessage(messageData) {
+    if (this.eventEmitter) {
+      console.log("SOCKET OUTGOING:", messageData);
+      this.eventEmitter.emit("outgoing-message", messageData);
+    } else {
+      console.warn("SOCKET OUTGOING: eventEmitter no está configurado");
+    }
+  }
 
   /**
    * Envía mensaje entrante a webhook URL configurada
@@ -859,13 +871,34 @@ class WhatsAppService {
   /**
    * Envía un mensaje de texto
    */
-  async sendMessage(jid, text) {
+  async sendMessage(jid, text, options = {}) {
     if (!this.isReady || !this.sock) {
       throw new Error("WhatsApp no está conectado");
     }
 
     try {
       const result = await this.sock.sendMessage(jid, { text });
+
+      if (!result) {
+        throw new Error("WhatsApp no devolvió información del mensaje enviado");
+      }
+
+      if (options.emitRealtime) {
+        this.emitOutgoingMessage({
+          messageId: result.key.id,
+          jid,
+          text,
+          sender: "agent",
+          senderName: "Xiomara",
+          channel: "whatsapp",
+          status: "sent",
+          timestamp: new Date().toLocaleTimeString("es-PE", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
+        });
+      }
 
       const isLidJid = this.isLid(jid);
       logger.info("Mensaje de texto enviado", {
@@ -875,6 +908,7 @@ class WhatsAppService {
         timestamp: result?.messageTimestamp,
         status: result?.status,
       });
+
       return {
         success: true,
         messageId: result.key.id,
