@@ -134,8 +134,10 @@ class WhatsAppService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
       });
 
+      console.log("N8N DEBUG - FETCH TERMINÓ");
       console.log("N8N DEBUG - RESPONSE STATUS:", response.status);
 
       const responseText = await response.text();
