@@ -12,8 +12,6 @@ export const PORT = process.env.PORT || 3001;
 
 export const TRIGGER_N8N_URL = process.env.TRIGGER_N8N_URL;
 
-console.log("TRIGGER_N8N_URL configurada:", TRIGGER_N8N_URL);
-
 // Configuracion de rate limiting
 export const RATE_LIMIT_CONFIG = {
   general: {

@@ -63,8 +63,6 @@ class WhatsAppService {
    */
 
   emitOutgoingMessage(messageData) {
-    console.log("SOCKET.IO EMITIENDO OUTGOING:", messageData);
-
     if (this.eventEmitter) {
       this.eventEmitter.emit("outgoing-message", messageData);
     } else {
@@ -92,15 +90,6 @@ class WhatsAppService {
   // NUEVO WEB HOOK PARA ENVIO A N8N
 
   async sendToN8n(messageData) {
-    console.log("N8N DEBUG - ENTRANDO A sendToN8n:", {
-      text: messageData.text,
-      from: messageData.from,
-      phone: messageData.phone,
-      jid: messageData.jid,
-      resolvedPhone: messageData.resolvedPhone,
-      messageId: messageData.messageId,
-    });
-
     const url = TRIGGER_N8N_URL;
 
     if (!url) {
@@ -124,10 +113,6 @@ class WhatsAppService {
         isLid: messageData.isLid || false,
       };
 
-      console.log("N8N DEBUG - URL:", TRIGGER_N8N_URL);
-
-      console.log("N8N DEBUG - PAYLOAD:", JSON.stringify(payload, null, 2));
-
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -137,12 +122,7 @@ class WhatsAppService {
         signal: AbortSignal.timeout(10000),
       });
 
-      console.log("N8N DEBUG - FETCH TERMINÓ");
-      console.log("N8N DEBUG - RESPONSE STATUS:", response.status);
-
       const responseText = await response.text();
-
-      console.log("N8N DEBUG - RESPONSE BODY:", responseText);
 
       if (!response.ok) {
         throw new Error(
