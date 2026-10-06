@@ -272,6 +272,11 @@ async function syncOutgoingMessageToCRM({
     status: "sent",
   };
 
+  console.log(
+    "Sincronizando mensaje con CRM: hora registrada",
+    payload.timestamp,
+  );
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
