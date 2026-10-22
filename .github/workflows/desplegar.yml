@@ -1,0 +1,56 @@
+# Despliegue automatico del servicio de WhatsApp.
+#
+# Se dispara cuando algo entra en `main`: un merge de cualquier rama, o un
+# push directo. Lo unico que hace es avisar a Dokploy, que es quien construye
+# la imagen y reinicia el contenedor.
+#
+# La direccion del webhook NO va escrita aqui: este repositorio es publico y
+# esa URL lleva un token que permite lanzar despliegues. Va guardada como
+# secreto del repositorio, en Settings -> Secrets and variables -> Actions,
+# con el nombre DOKPLOY_WEBHOOK_URL.
+
+name: Desplegar en Dokploy
+
+on:
+  push:
+    branches: [main]
+  # Permite lanzarlo a mano desde la pestaña Actions, sin tener que hacer un push.
+  workflow_dispatch:
+
+# Si llegan dos merges seguidos, solo interesa desplegar el ultimo: el primero
+# se cancela en vez de encadenar dos construcciones sobre el mismo contenedor.
+concurrency:
+  group: despliegue-dokploy
+  cancel-in-progress: true
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Avisar a Dokploy
+        env:
+          WEBHOOK: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "Falta el secreto DOKPLOY_WEBHOOK_URL en este repositorio."
+            exit 1
+          fi
+
+          # --max-time evita que el job se quede colgado si el servidor no responde.
+          codigo=$(curl -sS -X POST --max-time 30 -o respuesta.txt -w '%{http_code}' "$WEBHOOK")
+
+          echo "Dokploy respondio HTTP $codigo"
+          cat respuesta.txt || true
+
+          # Dokploy acepta la peticion y construye en segundo plano: un 2xx
+          # significa "despliegue encolado", no "despliegue terminado".
+          case "$codigo" in
+            2*) echo "Despliegue lanzado correctamente." ;;
+            *)  echo "Dokploy rechazo la peticion."; exit 1 ;;
+          esac
+
+      - name: Donde ver el resultado
+        run: |
+          echo "El build en si ocurre en Dokploy, no aqui."
+          echo "Mira el progreso en: WhatsAppService-CRM -> pestaña Deployments."
