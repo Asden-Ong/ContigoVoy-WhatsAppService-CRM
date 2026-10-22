@@ -31,17 +31,31 @@ jobs:
       - name: Avisar a Dokploy
         env:
           WEBHOOK: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+          # refs/heads/main. Dokploy compara esta rama con la que tiene
+          # configurada y descarta el aviso si no coinciden; una peticion sin
+          # `ref` se rechaza con "Branch Not Match".
+          REF: ${{ github.ref }}
         run: |
           if [ -z "$WEBHOOK" ]; then
             echo "Falta el secreto DOKPLOY_WEBHOOK_URL en este repositorio."
             exit 1
           fi
 
-          # --max-time evita que el job se quede colgado si el servidor no responde.
-          codigo=$(curl -sS -X POST --max-time 30 -o respuesta.txt -w '%{http_code}' "$WEBHOOK")
+          echo "Avisando del push a $REF"
+
+          # El webhook espera el mismo formato que manda GitHub: la cabecera
+          # x-github-event y un cuerpo con `ref`. --max-time evita que el job
+          # se quede colgado si el servidor no responde.
+          codigo=$(curl -sS -X POST --max-time 30 \
+            -H 'Content-Type: application/json' \
+            -H 'x-github-event: push' \
+            -d "{\"ref\":\"$REF\"}" \
+            -o respuesta.txt -w '%{http_code}' \
+            "$WEBHOOK")
 
           echo "Dokploy respondio HTTP $codigo"
           cat respuesta.txt || true
+          echo
 
           # Dokploy acepta la peticion y construye en segundo plano: un 2xx
           # significa "despliegue encolado", no "despliegue terminado".
