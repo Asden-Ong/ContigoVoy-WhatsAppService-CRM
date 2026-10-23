@@ -243,6 +243,15 @@ export async function sendCampaign(req, res) {
 }
 
 // Sincroniza mensajes (util para el n8n)
+//
+// Autenticacion: el CRM protege /api/* en su proxy (whato-crm-/src/proxy.ts) y
+// deja pasar las llamadas entre servidores que traen `x-api-key` con el valor
+// de su INTERNAL_API_KEY. Esa variable tiene que valer LO MISMO en los dos
+// proyectos; si no, el proxy responde 401 y la ruta ni se ejecuta.
+//
+// Antes se mandaba aqui WHATSAPP_WEBHOOK_SECRET, que es otra credencial (la del
+// parametro ?secret= de /api/whatsapp/incoming) y nunca coincidia: el bot
+// respondia por WhatsApp y la sincronizacion moria en un 401.
 async function syncOutgoingMessageToCRM({
   jid,
   phone,
@@ -251,7 +260,16 @@ async function syncOutgoingMessageToCRM({
   timestamp,
 }) {
   const crmUrl = process.env.CRM_URL || "http://localhost:3000";
-  const secret = process.env.WHATSAPP_WEBHOOK_SECRET || "";
+  const apiKey = process.env.INTERNAL_API_KEY;
+
+  // Se corta antes de llamar al CRM y con el nombre de la variable en el
+  // mensaje. Mandar la cabecera vacia daria un 401 igual, pero el log diria
+  // solo "CRM respondio 401" y eso no apunta a nada.
+  if (!apiKey) {
+    throw new Error(
+      "INTERNAL_API_KEY no esta configurado: el CRM rechazaria la sincronizacion con 401",
+    );
+  }
 
   const url = `${crmUrl}/api/whatsapp/outgoing`;
 
@@ -281,7 +299,7 @@ async function syncOutgoingMessageToCRM({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": secret,
+      "x-api-key": apiKey,
     },
     body: JSON.stringify(payload),
   });
