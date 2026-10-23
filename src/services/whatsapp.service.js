@@ -122,14 +122,35 @@ class WhatsAppService {
         signal: AbortSignal.timeout(10000),
       });
 
+      // El cuerpo se lee UNA sola vez: es un stream y el segundo .text() sobre
+      // la misma respuesta lanza "Body is unusable". Antes se leia aqui y otra
+      // vez al construir el mensaje de error, asi que el fallo que se queria
+      // reportar quedaba tapado por ese otro.
       const responseText = await response.text();
 
       if (!response.ok) {
-        throw new Error(
-          `n8n respondió ${response.status}: ${await response.text()}`,
-        );
+        throw new Error(`n8n respondió ${response.status}: ${responseText}`);
       }
-    } catch (error) {}
+
+      logger.info("Mensaje reenviado a n8n", {
+        messageId: messageData.messageId,
+        jid: messageData.from,
+      });
+    } catch (error) {
+      // Este catch estaba VACIO. Si n8n no respondia -- caido, URL mal, el
+      // contenedor sin salida de red hacia ese dominio -- el bot simplemente
+      // dejaba de contestar y no quedaba ni una linea en los logs. Se
+      // diagnosticaba a ciegas.
+      //
+      // No se relanza a proposito: sendToN8n va dentro de un
+      // Promise.allSettled junto al webhook del CRM, y que el bot falle no
+      // puede impedir que el mensaje se guarde.
+      logger.error("No se pudo reenviar el mensaje a n8n", {
+        error: error.message,
+        url,
+        messageId: messageData.messageId,
+      });
+    }
   }
 
   /**
@@ -500,6 +521,24 @@ class WhatsAppService {
 
       // Ignorar mensajes de grupos
       if (msg.key.remoteJid.includes("@g.us")) continue;
+
+      // Ignorar canales de difusion y estados.
+      //
+      // Un "@newsletter" es un canal de WhatsApp (los de noticias, promociones,
+      // etc.) y "status@broadcast" son los estados. A ninguno de los dos se les
+      // puede responder: al intentarlo, send-message devuelve 404 "No se pudo
+      // resolver el destinatario de WhatsApp".
+      //
+      // Sin este filtro cada publicacion de cada canal al que este suscrito el
+      // numero entraba como si fuera un cliente: creaba contacto y conversacion
+      // en el CRM, despertaba al chatbot y le gastaba tokens de IA para generar
+      // una respuesta que no tenia a donde ir.
+      if (
+        msg.key.remoteJid.includes("@newsletter") ||
+        msg.key.remoteJid.includes("@broadcast")
+      ) {
+        continue;
+      }
 
       try {
         const remoteJid = msg.key.remoteJid;
