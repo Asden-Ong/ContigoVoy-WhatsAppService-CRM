@@ -325,7 +325,22 @@ export async function sendMessage(req, res) {
       });
     }
 
-    const { phone, jid: inputJid, message, n8n: n8n } = req.body;
+    const { phone, jid: inputJid, message, source } = req.body;
+
+    // Quien guarda el mensaje en el CRM.
+    //
+    // El CRM manda `source: "crm"` porque el ya escribio la burbuja en su
+    // propia base ANTES de llamar aqui (page.tsx -> POST /api/messages);
+    // sincronizarlo otra vez duplicaria el mensaje en el chat.
+    //
+    // Cualquier otro cliente -- n8n, un script -- no guarda nada en el CRM, asi
+    // que lo sincronizamos nosotros. Antes la condicion era la contraria: solo
+    // se sincronizaba si el body traia un campo `n8n`. Como ese campo lo pone a
+    // mano el flujo de n8n, en cuanto se recreaba el nodo HTTP sin el, el bot
+    // seguia contestando por WhatsApp y el CRM no se enteraba de nada. Ahora el
+    // caso por defecto es sincronizar, y hay que pedir explicitamente lo otro.
+    const esEnvioDelCRM = source === "crm";
+    const debeSincronizarConCRM = !esEnvioDelCRM;
 
     if (!message) {
       return res.status(400).json({
@@ -372,12 +387,12 @@ export async function sendMessage(req, res) {
 
     // 1. Enviar primero a WhatsApp
     const result = await whatsappService.sendMessage(jid, message, {
-      emitRealtime: n8n !== undefined,
+      emitRealtime: debeSincronizarConCRM,
     });
 
     // 2. Solo después de enviar correctamente,
     //    sincronizamos el mensaje con el CRM.
-    if (n8n !== undefined) {
+    if (debeSincronizarConCRM) {
       try {
         await syncOutgoingMessageToCRM({
           jid,
