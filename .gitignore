@@ -1,6 +1,8 @@
 .wwebjs_*/
 auth_info/
 logs/
+temp_auto_push.bat
 *.log
 node_modules/
-.env
+.env.gitignore
+branch_structure.json
