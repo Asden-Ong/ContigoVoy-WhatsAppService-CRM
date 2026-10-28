@@ -42,11 +42,16 @@ class WhatsAppService {
   }
 
   /**
-   * Emite evento de actualización de QR
+   * Emite evento de actualización de QR.
+   *
+   * Se manda SIEMPRE el estado completo con los campos de `data` encima: el
+   * CRM reemplaza su estado entero con lo que llega en este evento, asi que
+   * un payload parcial (solo connectionStatus + qrData, como se emitia antes)
+   * le borraba el resto -- entre otras cosas, el numero de la sesion.
    */
   emitQRUpdate(data) {
     if (this.eventEmitter) {
-      this.eventEmitter.emit("qr-update", data);
+      this.eventEmitter.emit("qr-update", { ...this.getStatus(), ...data });
     }
   }
 
@@ -1132,10 +1137,24 @@ class WhatsAppService {
     clearTimeout(this.qrTimeout);
   }
 
+  getSessionAccount() {
+    if (!this.isReady || !this.sock?.user?.id) return null;
+
+    const id = String(this.sock.user.id);
+
+    return {
+      id,
+      phoneNumber: id.split("@")[0].split(":")[0].replace(/\D+/g, ""),
+      name: this.sock.user.name || this.sock.user.verifiedName || null,
+    };
+  }
+
   /**
    * Obtiene el estado actual
    */
   getStatus() {
+    const cuenta = this.getSessionAccount();
+
     return {
       isConnected: this.isReady,
       hasActiveQR: !!this.currentQR,
@@ -1150,6 +1169,10 @@ class WhatsAppService {
         : this.currentQR
           ? "qr-ready"
           : "disconnected",
+      // Quien tiene la sesion abierta: el CRM lo muestra en la cabecera para
+      // que el agente sepa a que numero consultar.
+      user: cuenta,
+      phoneNumber: cuenta?.phoneNumber || null,
     };
   }
 }
