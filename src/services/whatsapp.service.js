@@ -789,7 +789,8 @@ this.minDelayMs = 2000; // Pausa de 2 segundos entre mensajes
     }
 
     try {
-      const result = await this.sock.sendMessage(jid, {
+      await this._enforceThrottle();
+const result = await this.sock.sendMessage(jid, {
         audio: audioBuffer,
         mimetype,
         ptt: true,
@@ -817,7 +818,8 @@ this.minDelayMs = 2000; // Pausa de 2 segundos entre mensajes
     }
 
     try {
-      const result = await this.sock.sendMessage(jid, {
+      await this._enforceThrottle();
+const result = await this.sock.sendMessage(jid, {
         video: videoBuffer,
         caption: caption || undefined,
         mimetype,
@@ -845,7 +847,8 @@ this.minDelayMs = 2000; // Pausa de 2 segundos entre mensajes
     }
 
     try {
-      const result = await this.sock.sendMessage(jid, {
+      await this._enforceThrottle();
+const result = await this.sock.sendMessage(jid, {
         document: docBuffer,
         fileName: filename,
         mimetype,
@@ -873,7 +876,8 @@ this.minDelayMs = 2000; // Pausa de 2 segundos entre mensajes
     }
 
     try {
-      const result = await this.sock.sendMessage(jid, {
+      await this._enforceThrottle();
+const result = await this.sock.sendMessage(jid, {
         sticker: stickerBuffer,
         mimetype,
       });
@@ -936,7 +940,8 @@ async sendMessage(jid, text, options = {}) {
     }
 
     try {
-      await this._enforceThrottle();
+      
+await this._enforceThrottle();
 const result = await this.sock.sendMessage(jid, { text });
 
       if (!result) {
@@ -1011,7 +1016,8 @@ const result = await this.sock.sendMessage(jid, { text });
         };
       }
 
-      const result = await this.sock.sendMessage(jid, message);
+      await this._enforceThrottle();
+const result = await this.sock.sendMessage(jid, message);
       logger.info("Mensaje enviado con éxito", { jid, isGif });
       return {
         success: true,
