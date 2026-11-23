@@ -32,6 +32,8 @@ class WhatsAppService {
     // Mapa en memoria para resolver LIDs a números de teléfono reales
     // Se pobla cuando se descubre la relación (ej: al recibir mensajes de números conocidos)
     this.lidToPhoneMap = new Map();
+this.lastMessageTime = 0;
+this.minDelayMs = 2000; // Pausa de 2 segundos entre mensajes
   }
 
   /**
@@ -917,13 +919,25 @@ class WhatsAppService {
   /**
    * Envía un mensaje de texto
    */
-  async sendMessage(jid, text, options = {}) {
+  async _enforceThrottle() {
+  const now = Date.now();
+  const timePassed = now - this.lastMessageTime;
+  if (timePassed < this.minDelayMs) {
+    const wait = this.minDelayMs - timePassed;
+    logger.info(`[Throttling] Esperando ${wait}ms...`);
+    await new Promise(resolve => setTimeout(resolve, wait));
+  }
+  this.lastMessageTime = Date.now();
+}
+
+async sendMessage(jid, text, options = {}) {
     if (!this.isReady || !this.sock) {
       throw new Error("WhatsApp no está conectado");
     }
 
     try {
-      const result = await this.sock.sendMessage(jid, { text });
+      await this._enforceThrottle();
+const result = await this.sock.sendMessage(jid, { text });
 
       if (!result) {
         throw new Error("WhatsApp no devolvió información del mensaje enviado");
