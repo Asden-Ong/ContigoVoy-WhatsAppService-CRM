@@ -545,6 +545,17 @@ class WhatsAppService {
         continue;
       }
 
+      // Ignorar mensajes de sistema sin contenido visible (protocolo, claves de
+      // cifrado, reacciones, o mensajes que no se pudieron descifrar). Entraban
+      // como mensajes vacios y en el chat se veia un cuadro blanco con la hora.
+      if (this.isSystemOnlyMessage(msg.message)) {
+        logger.info("Mensaje de sistema ignorado", {
+          remoteJid: msg.key.remoteJid,
+          messageKeys: msg.message ? Object.keys(msg.message).join(", ") : "none",
+        });
+        continue;
+      }
+
       try {
         const remoteJid = msg.key.remoteJid;
         const isLid = this.isLid(remoteJid);
@@ -675,6 +686,25 @@ class WhatsAppService {
         });
       }
     }
+  }
+
+  /**
+   * True si el mensaje no trae nada que mostrar en el chat: no hay contenido
+   * (no se pudo descifrar) o todas sus claves son de sistema.
+   */
+  isSystemOnlyMessage(message) {
+    if (!message) return true;
+    const SYSTEM_KEYS = new Set([
+      "protocolMessage",
+      "senderKeyDistributionMessage",
+      "reactionMessage",
+      "encReactionMessage",
+      "pollUpdateMessage",
+      "keepInChatMessage",
+      "messageContextInfo",
+    ]);
+    const keys = Object.keys(message);
+    return keys.length === 0 || keys.every((k) => SYSTEM_KEYS.has(k));
   }
 
   /**
