@@ -282,6 +282,8 @@ async function syncOutgoingMessageToCRM({
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
+      // Sin zona el contenedor usa UTC y el bot salia a las 20:28 en vez de 15:28.
+      timeZone: process.env.BUSINESS_TIME_ZONE || "America/Lima",
     }),
     sender: "agent",
     senderName: "Xiomara",
