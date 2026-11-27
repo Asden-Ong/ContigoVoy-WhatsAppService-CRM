@@ -587,16 +587,20 @@ class WhatsAppService {
           }
         }
 
-        const hasMedia = this.hasMedia(msg.message);
-        const mediaType = this.getMediaType(msg.message);
-        const mediaInfo = this.getMediaInfo(msg.message);
+        // WhatsApp envuelve algunos mensajes (stickers animados/lottie, vista
+        // unica, efimeros): el sticker real viene un nivel mas adentro. Se
+        // desenvuelve para detectar el media; rawMessage conserva el original.
+        const content = this.unwrapMessage(msg.message);
+        const hasMedia = this.hasMedia(content);
+        const mediaType = this.getMediaType(content);
+        const mediaInfo = this.getMediaInfo(content);
 
         const messageData = {
           messageId: msg.key.id,
           from: remoteJid,
           fromName: msg.pushName || "Desconocido",
           timestamp: msg.messageTimestamp,
-          text: this.extractMessageText(msg.message),
+          text: this.extractMessageText(content),
           hasMedia,
           mediaType,
           mediaInfo,
@@ -671,6 +675,28 @@ class WhatsAppService {
         });
       }
     }
+  }
+
+  /**
+   * Desenvuelve los mensajes que WhatsApp envia dentro de otro (efimeros,
+   * vista unica, documento con caption, sticker lottie/animado, editados).
+   * Devuelve el contenido real; si no hay envoltorio, el mismo mensaje.
+   */
+  unwrapMessage(message) {
+    let current = message;
+    for (let i = 0; i < 5 && current; i++) {
+      const inner =
+        current.ephemeralMessage?.message ||
+        current.viewOnceMessage?.message ||
+        current.viewOnceMessageV2?.message ||
+        current.viewOnceMessageV2Extension?.message ||
+        current.documentWithCaptionMessage?.message ||
+        current.lottieStickerMessage?.message ||
+        current.editedMessage?.message;
+      if (!inner) break;
+      current = inner;
+    }
+    return current;
   }
 
   /**
@@ -754,7 +780,7 @@ class WhatsAppService {
     }
 
     try {
-      const msgContent = message.message;
+      const msgContent = this.unwrapMessage(message.message);
       if (!msgContent) {
         throw new Error("El mensaje no tiene contenido");
       }
